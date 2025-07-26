@@ -1,3 +1,4 @@
+console.log("🚦 server.js started loading...");
 import express from "express";
 import "dotenv/config";
 import cors from "cors";
