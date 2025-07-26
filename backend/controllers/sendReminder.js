@@ -2,6 +2,29 @@ import userModal from "../models/userModel.js";
 import { generateOccasionMessage } from "../utils/reminder.js";
 import axios from "axios";
 
+const festival = [
+  // Diwali
+  "https://res.cloudinary.com/detirn2nl/image/upload/v1753525261/xdiljj8fcuzcqeql3nvi.png",
+  // Rakshabandhan
+  "https://res.cloudinary.com/detirn2nl/image/upload/v1753525260/j0jf0ad3wd98pxzt94qr.png",
+];
+
+const birthday = [
+  "https://res.cloudinary.com/detirn2nl/image/upload/v1753525166/byst9enfypgr4uhkjkbm.png",
+  "https://res.cloudinary.com/detirn2nl/image/upload/v1753525101/ixefoctay6s7pklqelat.png",
+  "https://res.cloudinary.com/detirn2nl/image/upload/v1753525101/b0v8sbhgs7joui6g4jj2.png",
+  "https://res.cloudinary.com/detirn2nl/image/upload/v1753525102/kkwzhxrulpurlyvp9f2e.png",
+  "https://res.cloudinary.com/detirn2nl/image/upload/v1753525100/cbwwgbnn94qprb2eka3j.png",
+];
+
+const anniversary = [
+  "https://res.cloudinary.com/detirn2nl/image/upload/v1753525260/xo09pcoxetgnmlg79umc.png",
+  "https://res.cloudinary.com/detirn2nl/image/upload/v1753525261/wxpeky6clhgxusvbqbmf.png",
+  "https://res.cloudinary.com/detirn2nl/image/upload/v1753525165/kkmvkvizmhjjdx20xaxj.png",
+  "https://res.cloudinary.com/detirn2nl/image/upload/v1753525166/lgyiheatwawjcct0ns9l.png",
+  "https://res.cloudinary.com/detirn2nl/image/upload/v1753525166/yzf2qqnffw9ei0bzxkn0.png",
+];
+
 // function to get the age/years
 function getYearsSince(dateString) {
   const today = new Date();
@@ -23,23 +46,34 @@ export async function checkAndSendMessages() {
 
     for (const ev of user.events) {
       const eventDate = new Date(ev.date);
-      
+
       if (
         eventDate.getDate() === today.getDate() &&
         eventDate.getMonth() === today.getMonth()
       ) {
         const age = getYearsSince(ev.date);
         const recipient_name = ev.name;
-        const event_type=ev.event;
+        const event_type = ev.event;
         const custom_message = await generateOccasionMessage({
           age,
           event_type,
           relation: ev.relation,
         });
 
-        const imageUrl = `https://dummyimage.com/600x400/000/fff.png&text=Happy+${encodeURIComponent(
-          event_type
-        )}`;
+        let imageUrl =
+          "https://res.cloudinary.com/detirn2nl/image/upload/v1753525261/xdiljj8fcuzcqeql3nvi.png";
+        if (event_type === "Birthday") {
+          const randomIndex = Math.floor(Math.random() * birthday.length);
+          imageUrl = birthday[randomIndex];
+        } else if (event_type === "Festival") {
+          // Assuming you might have "Festival" as an event type
+          const randomIndex = Math.floor(Math.random() * festival.length);
+          imageUrl = festival[randomIndex];
+        } else if (event_type === "Anniversary") {
+          // Corrected "anniversay" to "anniversary"
+          const randomIndex = Math.floor(Math.random() * anniversary.length);
+          imageUrl = anniversary[randomIndex];
+        }
 
         try {
           const response = await axios({
@@ -73,10 +107,26 @@ export async function checkAndSendMessages() {
                   {
                     type: "body",
                     parameters: [
-                      { type: "text", text: recipient_name },
-                      { type: "text", text: event_type },
-                      { type: "text", text: custom_message },
-                      { type: "text", text: sender_name },
+                      {
+                        type: "text",
+                        parameter_name: "recipient_name", 
+                        text: recipient_name, 
+                      },
+                      {
+                        type: "text",
+                        parameter_name: "event_type",
+                        text: event_type,
+                      },
+                      {
+                        type: "text",
+                        parameter_name: "custom_message",
+                        text: custom_message,
+                      },
+                      {
+                        type: "text",
+                        parameter_name: "sender_name",
+                        text: sender_name,
+                      },
                     ],
                   },
                 ],
@@ -85,7 +135,10 @@ export async function checkAndSendMessages() {
           });
           console.log(response.data);
         } catch (error) {
-          console.error("WhatsApp API Error:",error.response?.data || error.message);
+          console.error(
+            "WhatsApp API Error:",
+            error.response?.data || error.message
+          );
         }
       }
     }

@@ -1,5 +1,3 @@
-console.log("🚦 server.js started loading...");
-
 import express from "express";
 import "dotenv/config";
 import cors from "cors";
@@ -23,7 +21,7 @@ app.get("/", (req, res) => {
   res.json({
     message: "Event Reminder API is working!",
     status: "active",
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -31,7 +29,7 @@ app.get("/health", (req, res) => {
   res.json({
     status: "healthy",
     uptime: process.uptime(),
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -54,7 +52,7 @@ async function startServer() {
     // Cron setup (surround with try-catch to prevent startup crashes)
     try {
       console.log("⏰ Setting up cron job...");
-      cron.schedule("0 5 * * *", async () => {
+      cron.schedule("00 5 * * *", async () => {
         console.log("⏰ Cron job triggered");
         await checkAndSendMessages();
       });
@@ -62,10 +60,9 @@ async function startServer() {
       console.error("❌ Cron setup failed:", cronError.message);
     }
 
-    app.listen(port, '0.0.0.0', () => {
+    app.listen(port, "0.0.0.0", () => {
       console.log(`🚀 Server started on port ${port}`);
     });
-
   } catch (err) {
     console.error("❌ App failed to start:", err.message);
     process.exit(1);
