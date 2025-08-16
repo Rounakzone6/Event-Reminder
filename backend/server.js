@@ -1,4 +1,4 @@
-console.log("🚦 server.js started loading...");
+console.log("server.js started loading...");
 import express from "express";
 import "dotenv/config";
 import cors from "cors";
@@ -18,7 +18,7 @@ app.use("/api/user", userRouter);
 app.use("/api/event", eventRouter);
 
 app.get("/", (req, res) => {
-  console.log("📡 Root endpoint accessed");
+  console.log("Root endpoint accessed");
   res.json({
     message: "Event Reminder API is working!",
     status: "active",
@@ -48,43 +48,40 @@ app.get("/api/send-daily-messages", async (req, res) => {
 async function startServer() {
   try {
     await connectDB();
-    console.log("✅ MongoDB connected");
-
-    // Cron setup (surround with try-catch to prevent startup crashes)
+    console.log("MongoDB connected");
     try {
-      console.log("⏰ Setting up cron job...");
+      console.log("Setting up cron job...");
       cron.schedule("00 5 * * *", async () => {
-        console.log("⏰ Cron job triggered");
+        console.log("Cron job triggered");
         await checkAndSendMessages();
       });
     } catch (cronError) {
-      console.error("❌ Cron setup failed:", cronError.message);
+      console.error("Cron setup failed:", cronError.message);
     }
 
     app.listen(port, "0.0.0.0", () => {
-      console.log(`🚀 Server started on port ${port}`);
+      console.log(`Server started on port ${port}`);
     });
   } catch (err) {
-    console.error("❌ App failed to start:", err.message);
+    console.error("App failed to start:", err.message);
     process.exit(1);
   }
 }
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error("❌ Express error:", err);
+  console.error("Express error:", err);
   res.status(500).json({ error: "Internal server error" });
 });
 
 // Unhandled crash prevention
 process.on("uncaughtException", (err) => {
-  console.error("❌ Uncaught Exception:", err);
+  console.error("Uncaught Exception:", err);
   process.exit(1);
 });
 process.on("unhandledRejection", (reason, promise) => {
-  console.error("❌ Unhandled Rejection at:", promise, "reason:", reason);
+  console.error("Unhandled Rejection at:", promise, "reason:", reason);
   process.exit(1);
 });
 
-// 🚀 Start the server
 startServer();

@@ -1,4 +1,5 @@
 import { useState, useEffect, createContext } from "react";
+import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { jwtDecode } from "jwt-decode";
 import { toast } from "react-toastify";
@@ -10,36 +11,35 @@ const ContextProvider = ({ children }) => {
   const [token, setToken] = useState("");
   const [events, setEvents] = useState([]);
   const [userName, setUserName] = useState("User");
+  const navigate = useNavigate();
 
   useEffect(() => {
     const storedToken = localStorage.getItem("token");
-    if (storedToken) {
-      setToken(storedToken);
-    }
+    if (storedToken) setToken(storedToken);
   }, []);
 
   useEffect(() => {
     if (token) {
       try {
         const decoded = jwtDecode(token);
-        if (decoded.name) {
-          setUserName(decoded.name);
-        }
+        if (decoded.name) setUserName(decoded.name);
       } catch (error) {
         console.error("Invalid token:", error.message);
       }
     }
   }, [token]);
 
-  // sort the events based on their date  -> upcoming date
+  // Sort the events based on their date -> upcoming date
   const sortEventsByUpcomingDate = (events) => {
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
     return events
       .map((event) => {
         const original = new Date(event.date);
-        const currentYear = today.getFullYear();
+        if (isNaN(original)) return null;
 
+        const currentYear = today.getFullYear();
         let upcomingDate = new Date(
           currentYear,
           original.getMonth(),
@@ -52,18 +52,16 @@ const ContextProvider = ({ children }) => {
 
         return { ...event, _sortDate: upcomingDate };
       })
+      .filter(Boolean)
       .sort((a, b) => a._sortDate - b._sortDate)
       .map(({ _sortDate, ...rest }) => rest);
   };
 
   const fetchEvents = async () => {
     if (!token) return;
-
     try {
       const res = await axios.get(`${backendUrl}/api/event/list`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       if (res.data.success) {
@@ -83,19 +81,17 @@ const ContextProvider = ({ children }) => {
 
     try {
       await axios.delete(`${backendUrl}/api/event/delete/${eventId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       setEvents((prevEvents) =>
-        prevEvents.filter((event) => event._id !== eventId)
+        sortEventsByUpcomingDate(prevEvents.filter((e) => e._id !== eventId))
       );
 
       toast.success("Event deleted successfully");
     } catch (error) {
       console.error("Error deleting event:", error);
-      toast.error("Failed to delete event");
+      toast.error(error.response?.data?.message || "Failed to delete event");
     }
   };
 
@@ -104,10 +100,13 @@ const ContextProvider = ({ children }) => {
   };
 
   useEffect(() => {
-    if (token) {
-      fetchEvents();
-    }
+    if (token) fetchEvents();
   }, [token]);
+
+  const logout = () => {
+    localStorage.removeItem("token");
+    setToken("");
+  };
 
   const value = {
     token,
@@ -119,6 +118,7 @@ const ContextProvider = ({ children }) => {
     handleDelete,
     handleEdit,
     setEvents,
+    logout,
   };
 
   return <Context.Provider value={value}>{children}</Context.Provider>;

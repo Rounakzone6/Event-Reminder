@@ -25,7 +25,6 @@ const anniversary = [
   "https://res.cloudinary.com/detirn2nl/image/upload/v1753525166/yzf2qqnffw9ei0bzxkn0.png",
 ];
 
-// function to get the age/years
 function getYearsSince(dateString) {
   const today = new Date();
   const date = new Date(dateString);
@@ -66,11 +65,9 @@ export async function checkAndSendMessages() {
           const randomIndex = Math.floor(Math.random() * birthday.length);
           imageUrl = birthday[randomIndex];
         } else if (event_type === "Festival") {
-          // Assuming you might have "Festival" as an event type
           const randomIndex = Math.floor(Math.random() * festival.length);
           imageUrl = festival[randomIndex];
         } else if (event_type === "Anniversary") {
-          // Corrected "anniversay" to "anniversary"
           const randomIndex = Math.floor(Math.random() * anniversary.length);
           imageUrl = anniversary[randomIndex];
         }
