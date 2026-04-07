@@ -10,10 +10,9 @@ const createToken = (user) => {
       name: user.name,
     },
     process.env.JWT_SECRET,
-    { expiresIn: "7d" }
+    { expiresIn: "7d" },
   );
 };
-
 
 // function for user login
 const loginUser = async (req, res) => {

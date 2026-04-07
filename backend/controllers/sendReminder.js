@@ -74,7 +74,7 @@ export async function checkAndSendMessages() {
 
         try {
           const response = await axios({
-            url: "https://graph.facebook.com/v22.0/768363456352633/messages",
+            url: `https://graph.facebook.com/v22.0/${process.env.WHATSAPP_APP_ID}/messages`,
             method: "post",
             headers: {
               Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
@@ -85,7 +85,7 @@ export async function checkAndSendMessages() {
               to: `91${ev.phone}`,
               type: "template",
               template: {
-                name: "ai_generated_greetings",
+                name: "event_reminder",
                 language: {
                   code: "en",
                 },
@@ -106,8 +106,8 @@ export async function checkAndSendMessages() {
                     parameters: [
                       {
                         type: "text",
-                        parameter_name: "recipient_name", 
-                        text: recipient_name, 
+                        parameter_name: "recipient_name",
+                        text: recipient_name,
                       },
                       {
                         type: "text",
@@ -134,7 +134,7 @@ export async function checkAndSendMessages() {
         } catch (error) {
           console.error(
             "WhatsApp API Error:",
-            error.response?.data || error.message
+            error.response?.data || error.message,
           );
         }
       }

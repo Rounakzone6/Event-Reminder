@@ -9,9 +9,9 @@ import authUser from "../middleware/auth.js";
 
 const eventRouter = express.Router();
 
-eventRouter.post("/add", authUser, addEvent);
-eventRouter.get("/list", authUser, listEvents);
-eventRouter.post("/edit", authUser, editEvent);
-eventRouter.delete("/delete/:id", authUser, deleteEvent);
+eventRouter.post("/", authUser, addEvent);
+eventRouter.get("/", authUser, listEvents);
+eventRouter.put("/:id", authUser, editEvent);
+eventRouter.delete("/:id", authUser, deleteEvent);
 
 export default eventRouter;

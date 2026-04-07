@@ -1,6 +1,7 @@
-import userModal from "../models/userModel.js";
+// Note: Changed 'userModal' to 'userModel' as "Model" is the correct database terminology
+import userModel from "../models/userModel.js";
 
-// function to add new event
+// Add new event
 const addEvent = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -8,29 +9,39 @@ const addEvent = async (req, res) => {
 
     const newEvent = { name, phone, event, date, relation };
 
-    const userData = await userModal.findById(userId);
-    if (!userData) {
+    // OPTIMIZATION: Use $push to add the item directly in the database
+    // instead of downloading the whole user document into memory.
+    const updatedUser = await userModel.findByIdAndUpdate(
+      userId,
+      { $push: { events: newEvent } },
+      { new: true, runValidators: true },
+    );
+
+    if (!updatedUser) {
       return res
         .status(404)
         .json({ success: false, message: "User not found" });
     }
 
-    userData.events.push(newEvent);
-    await userData.save();
+    // Grab the newly created event (which now has a MongoDB generated _id) to return it
+    const addedEvent = updatedUser.events[updatedUser.events.length - 1];
 
-    res.json({ success: true, message: "Event Added", data: newEvent });
+    res.json({ success: true, message: "Event Added", event: addedEvent });
   } catch (error) {
-    console.error(error);
+    console.error("Error in addEvent:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// function to list events
+// List events
 const listEvents = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    const user = await userModal.findById(userId).select("events");
+    // OPTIMIZATION: Added .lean()
+    // .lean() tells Mongoose to return raw JSON instead of heavy Mongoose objects.
+    // It makes read-only queries 3-5x faster.
+    const user = await userModel.findById(userId).select("events").lean();
 
     if (!user) {
       return res
@@ -45,67 +56,71 @@ const listEvents = async (req, res) => {
   }
 };
 
-// function to edit event
+// Edit event
 const editEvent = async (req, res) => {
   try {
-    const { userId, eventId, name, phone, event, date, relation } = req.body;
-    const user = await userModal.findById(userId);
-    if (!user) {
+    // SECURITY FIX: Extract userId from req.user.id (your auth token), NOT req.body.
+    // In your previous code, a hacker could pass someone else's userId in the body and edit their events.
+    const userId = req.user.id;
+    const { eventId, name, phone, event, date, relation } = req.body;
+
+    // Dynamically build the update object so we only overwrite fields that were actually sent
+    const updateFields = {};
+    if (name) updateFields["events.$.name"] = name;
+    if (phone) updateFields["events.$.phone"] = phone;
+    if (event) updateFields["events.$.event"] = event;
+    if (date) updateFields["events.$.date"] = date;
+    if (relation) updateFields["events.$.relation"] = relation;
+
+    // OPTIMIZATION: Use MongoDB's positional operator ($) to update the specific subdocument instantly
+    const updatedUser = await userModel.findOneAndUpdate(
+      { _id: userId, "events._id": eventId },
+      { $set: updateFields },
+      { new: true },
+    );
+
+    if (!updatedUser) {
       return res
         .status(404)
-        .json({ success: false, message: "User not found" });
+        .json({ success: false, message: "User or Event not found" });
     }
 
-    const eventToEdit = user.events.id(eventId);
-    if (!eventToEdit) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Event not found" });
-    }
-
-    // Update fields
-    eventToEdit.name = name || eventToEdit.name;
-    eventToEdit.phone = phone || eventToEdit.phone;
-    eventToEdit.event = event || eventToEdit.event;
-    eventToEdit.date = date || eventToEdit.date;
-    eventToEdit.relation = relation || eventToEdit.relation;
-
-    await user.save();
+    // Find the updated event to send back to the frontend
+    const updatedEvent = updatedUser.events.find(
+      (e) => e._id.toString() === eventId,
+    );
 
     res.json({
       success: true,
       message: "Event updated successfully",
-      data: eventToEdit,
+      data: updatedEvent,
     });
   } catch (error) {
-    console.log(error);
+    console.error("Error in editEvent:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// function to delete the event
+// Delete event
 const deleteEvent = async (req, res) => {
   try {
     const userId = req.user.id;
     const eventId = req.params.id;
 
-    const user = await userModal.findById(userId);
-    if (!user) {
-      console.log("User not found");
+    // OPTIMIZATION: Use $pull to remove the item instantly in the DB layer.
+    // This turns a 3-step process (Fetch -> Pull -> Save) into a 1-step process.
+    const updatedUser = await userModel.findByIdAndUpdate(
+      userId,
+      { $pull: { events: { _id: eventId } } },
+      { new: true },
+    );
+
+    if (!updatedUser) {
       return res
         .status(404)
         .json({ success: false, message: "User not found" });
     }
-    const eventExists = user.events.id(eventId);
-    if (!eventExists) {
-      console.log("Event not found in user's list");
-      return res
-        .status(404)
-        .json({ success: false, message: "Event not found" });
-    }
 
-    user.events.pull(eventId);
-    await user.save();
     return res.json({ success: true, message: "Event deleted successfully" });
   } catch (error) {
     console.error("DELETE error:", error.stack || error.message);

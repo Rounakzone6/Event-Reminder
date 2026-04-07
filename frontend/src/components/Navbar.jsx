@@ -1,10 +1,11 @@
 import { faUser } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { NavLink, useNavigate } from "react-router-dom";
+import { useContext } from "react";
+import { NavLink } from "react-router-dom";
+import AppContext from "../context/AppContext";
 
 const Navbar = () => {
-  const navigate =useNavigate();
-  const token = localStorage.getItem("token");
+  const { token, navigate } = useContext(AppContext);
 
   function userHandle() {
     if (token) {

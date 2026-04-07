@@ -1,110 +1,117 @@
-import { useState, useEffect, useContext } from "react";
+import { useState, useContext, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
-import { Context } from "../context/Context";
 import axios from "axios";
 import { jwtDecode } from "jwt-decode";
+import AppContext from "../context/AppContext";
+
+const formatDateForInput = (dateString) => {
+  if (!dateString) return "";
+  const date = new Date(dateString);
+  return isNaN(date.getTime()) ? "" : date.toISOString().split("T")[0];
+};
 
 const AddNewEvent = () => {
-  const { token, backendUrl, fetchEvents } = useContext(Context);
+  // BROUGHT BACK: fetchEvents instead of setEvents
+  const { token, backendUrl, fetchEvents } = useContext(AppContext);
   const navigate = useNavigate();
   const location = useLocation();
   const eventData = location.state?.eventData;
 
-  const [isFestival, setIsFestival] = useState(false);
-  const [isOtherFestival, setIsOtherFestival] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const [formData, setFormData] = useState({
-    name: "",
-    phone: "",
-    event: "Birthday",
-    festival: "",
-    customFestival: "",
-    date: "",
-    relation: "Friend",
-  });
+  const initialFormData = useMemo(() => {
+    const STANDARD_EVENTS = ["Birthday", "Anniversary"];
+    const STANDARD_FESTIVALS = ["Holi", "Dussehra", "Diwali", "Chhath Puja"];
 
-  useEffect(() => {
+    let eventType = "Birthday";
+    let festivalType = "Holi";
+    let customFest = "";
+
     if (eventData) {
-      setFormData({
-        name: eventData.name || "",
-        phone: eventData.phone || "",
-        event: eventData.event || "Birthday",
-        festival: eventData.festival || "",
-        customFestival: eventData.customFestival || "",
-        date: eventData.date || "",
-        relation: eventData.relation || "Friend",
-      });
-      setIsFestival(eventData.event === "Festival");
-      setIsOtherFestival(eventData.festival === "Other");
+      if (STANDARD_EVENTS.includes(eventData.event)) {
+        eventType = eventData.event;
+      } else {
+        eventType = "Festival";
+        if (STANDARD_FESTIVALS.includes(eventData.event)) {
+          festivalType = eventData.event;
+        } else {
+          festivalType = "Other";
+          customFest = eventData.event;
+        }
+      }
     }
+
+    return {
+      name: eventData?.name || "",
+      phone: eventData?.phone || "",
+      event: eventType,
+      festival: festivalType,
+      customFestival: customFest,
+      date: eventData?.date ? formatDateForInput(eventData.date) : "",
+      relation: eventData?.relation || "Friend",
+    };
   }, [eventData]);
 
-  const onSubmitHandler = async (event) => {
-    event.preventDefault();
+  const [formData, setFormData] = useState(initialFormData);
 
-    if (isFestival && isOtherFestival && !formData.customFestival.trim()) {
+  const isFestival = formData.event === "Festival";
+  const isOtherFestival = isFestival && formData.festival === "Other";
+
+  const handleChange = (e) => {
+    setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+  };
+
+  const onSubmitHandler = async (e) => {
+    e.preventDefault();
+    if (isLoading) return;
+
+    if (isOtherFestival && !formData.customFestival.trim()) {
       toast.error("Please enter a custom festival name");
       return;
     }
 
-    const decoded = jwtDecode(token);
-    const userId = decoded.id;
+    setIsLoading(true);
 
-    const finalEvent =
-      formData.event === "Festival"
+    try {
+      const decoded = jwtDecode(token);
+
+      const finalEvent = isFestival
         ? isOtherFestival
           ? formData.customFestival.trim()
           : formData.festival
         : formData.event;
 
-    try {
+      const payload = {
+        userId: decoded.id,
+        name: formData.name,
+        phone: formData.phone,
+        event: finalEvent,
+        date: formData.date,
+        relation: formData.relation,
+      };
+
       if (eventData) {
-        // Update Existing Event
-        await axios.post(
-          `${backendUrl}/api/event/edit`,
-          {
-            userId,
-            eventId: eventData._id,
-            name: formData.name,
-            phone: formData.phone,
-            event: finalEvent,
-            date: formData.date,
-            relation: formData.relation,
-          },
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
+        await axios.put(`${backendUrl}/event/${eventData._id}`, payload, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
         toast.success("Event updated successfully");
       } else {
-        // Add New Event
-        await axios.post(
-          `${backendUrl}/api/event/add`,
-          {
-            userId,
-            name: formData.name,
-            phone: formData.phone,
-            event: finalEvent,
-            date: formData.date,
-            relation: formData.relation,
-          },
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
+        await axios.post(`${backendUrl}/event`, payload, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        // SAFEST APPROACH: Refetch events so they get sorted properly and have their database IDs attached
+        await fetchEvents();
+
         toast.success("Event added successfully");
       }
-
-      await fetchEvents();
       navigate("/events");
     } catch (error) {
-      console.error(error);
-      toast.error(error.response?.data?.message || error.message);
+      console.error("Error saving event:", error);
+      toast.error(error.response?.data?.message || "Failed to save event");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -124,7 +131,6 @@ const AddNewEvent = () => {
         onSubmit={onSubmitHandler}
         className="bg-white rounded-2xl p-6 md:max-w-xl mx-auto shadow-md flex flex-col gap-3"
       >
-        {/* Name */}
         <div className="flex flex-col">
           <label className="font-medium mb-1" htmlFor="name">
             👤 Name
@@ -135,32 +141,28 @@ const AddNewEvent = () => {
             name="name"
             id="name"
             value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            placeholder="Enter your Name"
+            onChange={handleChange}
+            placeholder="Enter Name"
             required
           />
         </div>
 
-        {/* Phone */}
         <div className="flex flex-col">
           <label className="font-medium mb-1" htmlFor="phone">
             ☎ Phone
           </label>
           <input
             className="py-2 px-4 rounded-lg bg-gray-100 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-violet-400"
-            type="text"
+            type="tel"
             name="phone"
             id="phone"
             value={formData.phone}
-            onChange={(e) =>
-              setFormData({ ...formData, phone: e.target.value })
-            }
-            placeholder="Enter your Name"
+            onChange={handleChange}
+            placeholder="Enter Phone Number"
             required
           />
         </div>
 
-        {/* Event Type */}
         <div className="flex flex-col">
           <label className="font-medium mb-1" htmlFor="event">
             🗓️ Event Type
@@ -168,13 +170,9 @@ const AddNewEvent = () => {
           <select
             name="event"
             id="event"
-            className="py-2 px-4 rounded-lg bg-gray-100 border border-gray-300"
+            className="py-2 px-4 rounded-lg bg-gray-100 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-violet-400"
             value={formData.event}
-            onChange={(e) => {
-              const selected = e.target.value;
-              setFormData({ ...formData, event: selected });
-              setIsFestival(selected === "festival");
-            }}
+            onChange={handleChange}
           >
             <option value="Birthday">Birthday</option>
             <option value="Anniversary">Anniversary</option>
@@ -182,25 +180,20 @@ const AddNewEvent = () => {
           </select>
         </div>
 
-        {/* Festival Type */}
         {isFestival && (
-          <div className="flex flex-col">
+          <div className="flex flex-col animate-fade-in">
             <label className="font-medium mb-1" htmlFor="festival">
               🎊 Festival Type
             </label>
             <select
               name="festival"
               id="festival"
-              className="py-2 px-4 rounded-lg bg-gray-100 border border-gray-300"
+              className="py-2 px-4 rounded-lg bg-gray-100 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-violet-400"
               value={formData.festival}
-              onChange={(e) => {
-                const selected = e.target.value;
-                setFormData({ ...formData, festival: selected });
-                setIsOtherFestival(selected === "Other");
-              }}
+              onChange={handleChange}
             >
               <option value="Holi">Holi</option>
-              <option value="Dessehra">Dessehra</option>
+              <option value="Dussehra">Dussehra</option>
               <option value="Diwali">Diwali</option>
               <option value="Chhath Puja">Chhath Puja</option>
               <option value="Other">Other</option>
@@ -209,35 +202,32 @@ const AddNewEvent = () => {
             {isOtherFestival && (
               <input
                 type="text"
-                placeholder="Enter Festival Name"
-                className="mt-2 py-2 px-4 rounded-lg bg-gray-100 border border-gray-300"
+                placeholder="Enter Custom Festival Name"
+                className="mt-2 py-2 px-4 rounded-lg bg-gray-100 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-violet-400"
                 name="customFestival"
                 value={formData.customFestival}
-                onChange={(e) =>
-                  setFormData({ ...formData, customFestival: e.target.value })
-                }
+                onChange={handleChange}
+                required
               />
             )}
           </div>
         )}
 
-        {/* Date */}
         <div className="flex flex-col">
-          <label className="font-medium mb-1" htmlFor="birthday">
+          <label className="font-medium mb-1" htmlFor="date">
             📅 Date
           </label>
           <input
-            className="py-2 px-4 rounded-lg bg-gray-100 border border-gray-300"
+            className="py-2 px-4 rounded-lg bg-gray-100 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-violet-400"
             type="date"
-            name="birthday"
-            id="birthday"
+            name="date"
+            id="date"
             value={formData.date}
-            onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+            onChange={handleChange}
             required
           />
         </div>
 
-        {/* Relation */}
         <div className="flex flex-col">
           <label className="font-medium mb-1" htmlFor="relation">
             👥 Relation
@@ -245,11 +235,9 @@ const AddNewEvent = () => {
           <select
             name="relation"
             id="relation"
-            className="py-2 px-4 rounded-lg bg-gray-100 border border-gray-300"
+            className="py-2 px-4 rounded-lg bg-gray-100 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-violet-400"
             value={formData.relation}
-            onChange={(e) =>
-              setFormData({ ...formData, relation: e.target.value })
-            }
+            onChange={handleChange}
           >
             <option value="Friend">Friend</option>
             <option value="Brother">Brother</option>
@@ -260,10 +248,16 @@ const AddNewEvent = () => {
           </select>
         </div>
 
-        {/* Save Button */}
         <div className="mt-4">
-          <button className="w-full py-2 rounded-full bg-green-700 hover:bg-green-800 text-white font-semibold shadow transition-all">
-            Save
+          <button
+            disabled={isLoading}
+            className={`w-full py-2 rounded-full font-semibold shadow transition-all ${
+              isLoading
+                ? "bg-gray-400 text-gray-700 cursor-not-allowed"
+                : "bg-green-700 hover:bg-green-800 text-white"
+            }`}
+          >
+            {isLoading ? "Saving..." : "Save"}
           </button>
         </div>
       </form>
